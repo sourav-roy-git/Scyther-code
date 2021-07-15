@@ -1,0 +1,142 @@
+hashfunction H;
+usertype SharedSecret;
+usertype ConstVal;
+
+const XOR:Function;
+const AND:Function;
+const CON:Function;
+const PUFa:Function;
+const PUFb:Function;
+
+const Cai:ConstVal;
+const Cbi:ConstVal;
+const idA:ConstVal;
+const idB:ConstVal;
+//const choice:ConstVal;
+const salt:ConstVal;
+
+const RN:SharedSecret;
+const Tab:SharedSecret;
+
+
+macro Rai=PUFa(Cai);
+macro Rbi=PUFb(Cbi);
+
+//S1
+macro Ma=XOR(Rai,RN);
+macro Mb=XOR(Rbi,RN);
+macro Tabprime=XOR(Tab,RN);
+//macro Hab=H(CON(CON(CON(Ma,Mb),Rai),Rbi));
+macro Ha=H(CON(Ma,Rai));
+macro Hb=H(CON(Mb,Rbi));
+
+//A1
+macro Raiprime=PUFa(Cai);
+macro RN=XOR(Raiprime,Ma);
+macro Rbiprime=XOR(Mb,RN);
+macro Tab=XOR(Tabprime,RN);
+//macro Habprime=H(CON(CON(CON(Ma,Mb),Rai),Rbi));
+macro Haprime=H(CON(Ma,Raiprime));
+macro Hbprime=H(CON(Mb,Rbiprime));
+
+//B1
+macro Rbiprime=PUFb(Cbi);
+macro RN=XOR(Rbiprime,Mb);
+macro Raiprime=XOR(Ma,RN);
+macro Tab=XOR(Tabprime,RN);
+macro Haprime=H(CON(Ma,Raiprime));
+macro Hbprime=H(CON(Mb,Rbiprime));
+
+//A2
+macro Tb=XOR(Tab,Rbi);
+
+//B2
+macro Rbiprime=XOR(Tb,Tab);
+
+//B3
+macro Ta=XOR(Tab,Rai);
+
+//A3
+macro Raiprime=XOR(Ta,Tab);
+
+//A4
+macro Caiprime=XOR(Cai,Rai);
+macro Raiprime=PUFa(Caiprime);
+macro Msa=XOR(Raiprime,RN);
+macro Hsa=H(CON(Raiprime,Msa));
+
+//B4
+macro Cbiprime=XOR(Cbi,Rbi);
+macro Rbiprime=PUFb(Cbiprime);
+macro Msb=XOR(Rbiprime,salt);
+macro Hsb=H(CON(Rbiprime,Msb));
+
+//S2
+macro Raiprimev=XOR(Msa,RN);
+macro Rbiprimev=XOR(RN,Msb);
+macro Caiprime=XOR(Cai,Rai);
+macro Cbiprime=XOR(Cbi,Rbi);
+macro Hsaprime=H(CON(Raiprimev,Msa));
+macro Hsbprime=H(CON(Rbiprimev,Msb));
+
+protocol nodeA-server-nodeB(nodeA,server,nodeB){
+
+    role nodeA{
+        send_1(nodeA, nodeB, idA);
+        recv_3A(server, nodeA, (Cai,Ma,Mb,Hb,Ha,Tabprime));
+        match(Ha,Haprime);
+        match(Hb,Hbprime);
+        send_4A(nodeA, nodeB, (Tb));
+        recv_4B(nodeB, nodeA, (Ta));
+        match(Raiprime,Rai);
+        send_5A(nodeA, server, (Msa,Hsa));
+
+	claim(nodeA, Secret, Rai);
+	claim(nodeA, Secret, Rbi);
+	claim(nodeA, Secret, Tab);
+	claim(nodeA, Niagree);
+        claim(nodeA, Nisynch);
+        claim(nodeA, Alive);
+        claim(nodeA, Weakagree);
+    }
+    role nodeB{
+        recv_1(nodeA, nodeB, idA);
+        send_2(nodeB, server, (idA,idB));
+        recv_3B(server, nodeB, (Cbi,Ma,Mb,Hb,Ha,Tabprime));
+        match(Ha,Haprime);
+        match(Hb,Hbprime);
+        recv_4A(nodeA, nodeB, (Tb));
+        match(Rbiprime,Rbi);
+        send_4B(nodeB, nodeA, (Ta));
+        send_5B(nodeB, server, (Msb,Hsb));
+
+	claim(nodeB, Secret, Rai);
+	claim(nodeB, Secret, Rbi);
+	claim(nodeB, Secret, Tab);
+        claim(nodeB, Niagree);
+        claim(nodeB, Nisynch);
+        claim(nodeB, Alive);
+        claim(nodeB, Weakagree);
+    }
+    role server{
+        
+	//fresh  RN;
+	//fresh Tab;
+        recv_2(nodeB, server, (idA,idB));
+        send_3A(server, nodeA, (Cai,Ma,Mb,Hb,Ha,Tabprime));
+        send_3B(server, nodeB, (Cbi,Ma,Mb,Hb,Ha,Tabprime));
+        recv_5A(nodeA, server, (Msa,Hsa));
+        recv_5B(nodeB, server, (Msb,Hsb));
+        match(Hsaprime,Hsa);
+        match(Hsbprime,Hsb);
+
+	claim(server, Secret, Rai);
+	claim(server, Secret, Rbi);
+	claim(server, Secret, Tab);
+        claim(server, Niagree);
+        claim(server, Nisynch);
+        claim(server, Alive);
+        claim(server, Weakagree);
+    }
+
+}
